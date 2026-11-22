@@ -11,7 +11,13 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
 
             frontend = container "Aplicação Front-end" "Interface para cadastro, login, solicitação de corridas e acompanhamento da viagem." "Web App (SPA)" "Frontend"
 
-            userService = container "Serviço de Usuários" "Cadastro, login (emissão de JWT), perfis tarifários (comum, estudante, social) e regras de negócio de usuários e motoristas." "Spring Boot (REST)" "Servico"
+            userService = container "Serviço de Usuários" "Cadastro, login (emissão de JWT), perfis tarifários (comum, estudante, social) e regras de negócio de usuários e motoristas." "Spring Boot (REST)" "Servico" {
+                authController = component "AuthController" "Expõe endpoints REST (/api/auth/login) para autenticação de usuários e emissão de token JWT." "Spring Web (@RestController)" "Componente"
+                userController = component "UserController" "Expõe endpoints REST (/api/users) para cadastro de usuários, gestão de veículos/assentos e consulta de perfis tarifários." "Spring Web (@RestController)" "Componente"
+                authService = component "AuthService" "Valida credenciais de acesso e gera tokens JWT contendo perfil tarifário e papel do usuário." "Spring Bean (@Service)" "Componente"
+                userServiceComp = component "UserService" "Orquestra regras de negócio de cadastro de passageiros/motoristas, perfis tarifários e veículos." "Spring Bean (@Service)" "Componente"
+                userRepository = component "UserRepository" "Persiste e consulta usuários, perfis tarifários e veículos no PostgreSQL." "Spring Data JPA (@Repository)" "Componente"
+            }
 
             rideService = container "Serviço de Rotas e Corridas" "Cria rotas, agenda corridas, pareia passageiros e publica eventos. Valida o JWT recebido." "Spring Boot (REST)" "Servico" {
                 routeController = component "RouteController" "Expõe endpoints REST (/api/routes) para criação, consulta e gerenciamento de rotas oferecidas por motoristas." "Spring Web (@RestController)" "Componente"
@@ -75,7 +81,17 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
         broker -> notificationService "Entrega notifications.dispatch" "AMQP"
         notificationService -> db "Registra envios" "JDBC"
 
-        # --- Nível 3: Componentes (Serviço de Rotas e Corridas, Message Broker, Serviço de Pagamentos e Serviço de Notificações)
+        # --- Nível 3: Componentes (Serviço de Usuários, Serviço de Rotas e Corridas, Message Broker, Serviço de Pagamentos e Serviço de Notificações)
+        frontend -> authController "Realiza login (/api/auth)" "HTTPS/REST (JSON)"
+        frontend -> userController "Cadastra usuários e veículos (/api/users)" "HTTPS/REST (JSON)"
+        userServiceClient -> userController "Consulta perfil tarifário do passageiro" "HTTP/REST"
+
+        authController -> authService "Delega autenticação e geração de JWT"
+        userController -> userServiceComp "Delega cadastro e consulta de usuários/veículos"
+        authService -> userRepository "Busca credenciais do usuário"
+        userServiceComp -> userRepository "Persiste e consulta usuários e veículos"
+        userRepository -> db "Lê e grava usuários e veículos" "JDBC"
+
         frontend -> routeController "Cria e consulta rotas (/api/routes)" "HTTPS/REST (JSON)"
         frontend -> rideController "Solicita e acompanha corridas (/api/rides)" "HTTPS/REST (JSON)"
 
@@ -86,7 +102,6 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
         routeMatchingComponent -> routeRepository "Consulta rotas ativas e vagas"
 
         rideServiceComp -> userServiceClient "Solicita verificação de perfil tarifário e status do usuário"
-        userServiceClient -> userService "Consulta perfil tarifário do passageiro" "HTTP/REST"
 
         rideServiceComp -> mapsClient "Solicita cálculo de distância, tempo e traçado"
         mapsClient -> mapas "Consulta rotas e distâncias" "HTTPS"
@@ -121,6 +136,11 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
         }
 
         container mobisocial "N2-Containers" "C4 Nível 2 - Diagrama de Containers" {
+            include *
+            autolayout lr
+        }
+
+        component userService "N3-Usuarios" "C4 Nível 3 - Componentes do Serviço de Usuários" {
             include *
             autolayout lr
         }
