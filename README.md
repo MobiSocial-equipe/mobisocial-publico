@@ -78,6 +78,11 @@ O Front-end se comunica com o Serviço de Usuários e com o Serviço de Rotas e 
 
 ### 3.3. C4 Nível 3: Diagramas de Componentes
 
+#### Serviço de Usuários
+![Diagrama de Componentes - Serviço de Usuários](docs/c4/.structurizr/1/svgs/n3/N3-Usuarios-dark.svg)
+
+O **Serviço de Usuários** recebe requisições do **Front-end** via **HTTPS/REST** (JSON) nos controladores `AuthController` (`/api/auth`) e `UserController` (`/api/users`). O `AuthController` delega ao `AuthService` a validação de credenciais e a emissão do token **JWT**, enquanto o `UserController` delega ao `UserService` o cadastro de passageiros e motoristas, a gestão de veículos/assentos e a consulta de perfis tarifários (`COMUM`, `ESTUDANTE`, `SOCIAL`). Além disso, o `UserController` atende requisições internas via **HTTP/REST** do **Serviço de Rotas e Corridas** (`UserServiceClient`) para verificação de perfil tarifário, e os dados de usuários e veículos são persistidos no **PostgreSQL** por meio do `UserRepository` (**JDBC**).
+
 #### Serviço de Rotas e Corridas
 ![Diagrama de Componentes - Serviço de Rotas e Corridas](docs/c4/.structurizr/1/svgs/n3/N3-RotasCorridas-dark.svg)
 
