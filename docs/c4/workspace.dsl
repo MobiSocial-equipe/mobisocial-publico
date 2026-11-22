@@ -62,24 +62,34 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
         # --- Nível 2: Containers
         passageiro -> frontend "Usa" "HTTPS"
         motorista -> frontend "Usa" "HTTPS"
+        frontend -> passageiro "Disponibiliza respostas e confirmações" "HTTPS"
 
         frontend -> userService "Cadastro e login (/api/users, /api/auth)" "HTTPS/REST (JSON)"
         frontend -> rideService "Rotas e corridas (/api/rides, /api/routes)" "HTTPS/REST (JSON)"
+        userService -> frontend "Retorna JWT" "HTTPS/REST (JSON)"
 
         userService -> db "Lê e grava usuários e perfis" "JDBC"
+        db -> userService "Retorna usuários e perfis" "JDBC"
 
         rideService -> userService "Consulta perfil tarifário do passageiro" "HTTP/REST"
         rideService -> mapas "Consulta rotas e distâncias" "HTTPS"
+        mapas -> rideService "Retorna trajeto estimado" "HTTPS"
         rideService -> db "Lê e grava rotas e corridas" "JDBC"
+        db -> rideService "Retorna rotas e corridas" "JDBC"
         rideService -> broker "Publica evento em payments.process" "AMQP"
 
         broker -> paymentService "Entrega payments.process" "AMQP"
         paymentService -> db "Lê e grava pagamentos" "JDBC"
+        db -> paymentService "Retorna dados de pagamento" "JDBC"
         paymentService -> gateway "Cobra" "HTTPS"
+        gateway -> paymentService "Retorna status da cobrança" "HTTPS"
         paymentService -> broker "Publica evento em notifications.dispatch" "AMQP"
 
         broker -> notificationService "Entrega notifications.dispatch" "AMQP"
         notificationService -> db "Registra envios" "JDBC"
+        db -> notificationService "Confirma registros" "JDBC"
+        notificationService -> passageiro "Envia confirmação da corrida e do pagamento" "HTTPS/Push"
+        notificationService -> motorista "Envia aviso da corrida agendada" "HTTPS/Push"
 
         # --- Nível 3: Componentes (Serviço de Usuários, Serviço de Rotas e Corridas, Message Broker, Serviço de Pagamentos e Serviço de Notificações)
         frontend -> authController "Realiza login (/api/auth)" "HTTPS/REST (JSON)"
@@ -162,6 +172,52 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
 
         component notificationService "N3-Notificacoes" "C4 Nível 3 - Componentes do Serviço de Notificações" {
             include *
+            autolayout lr
+        }
+
+        dynamic mobisocial "N4-1-Autenticacao" "Autenticação do passageiro e emissão do JWT" {
+            passageiro -> frontend "Informa email e senha"
+            frontend -> userService "POST /api/auth/login"
+            userService -> db "Busca credenciais e perfil tarifário"
+            db -> userService "Retorna o usuário"
+            userService -> frontend "Retorna JWT"
+            frontend -> passageiro "Disponibiliza o token ao passageiro"
+            autolayout lr
+        }
+
+        dynamic mobisocial "N4-2-Agendamento" "Agendamento compartilhado e publicação do evento" {
+            passageiro -> frontend "Solicita corrida com JWT"
+            frontend -> rideService "POST /api/rides e valida o JWT"
+            rideService -> userService "Consulta perfil tarifário"
+            userService -> db "Busca o perfil tarifário"
+            rideService -> mapas "Calcula rota e distância"
+            mapas -> rideService "Retorna trajeto estimado"
+            rideService -> db "Verifica assentos disponíveis"
+            db -> rideService "Confirma a rota ativa"
+            rideService -> db "Salva a corrida agendada"
+            db -> rideService "Confirma o agendamento"
+            rideService -> broker "Publica RideScheduledEvent"
+            autolayout lr
+        }
+
+        dynamic mobisocial "N4-3-Pagamento" "Rateio, tarifa social e cobrança" {
+            broker -> paymentService "Entrega RideScheduledEvent"
+            paymentService -> db "Consulta dados da corrida e passageiros"
+            db -> paymentService "Retorna dados necessários"
+            paymentService -> gateway "Calcula o rateio, aplica a tarifa social e solicita a cobrança"
+            gateway -> paymentService "Retorna status da cobrança"
+            paymentService -> db "Salva pagamento e rateios"
+            db -> paymentService "Confirma o registro"
+            paymentService -> broker "Publica PaymentProcessedEvent"
+            autolayout lr
+        }
+
+        dynamic mobisocial "N4-4-Notificacao" "Confirmação da corrida e do pagamento" {
+            broker -> notificationService "Entrega PaymentProcessedEvent"
+            notificationService -> db "Formata, registra e envia a notificação"
+            db -> notificationService "Confirma o registro"
+            notificationService -> passageiro "Envia confirmação da corrida e do pagamento"
+            notificationService -> motorista "Envia aviso da corrida agendada"
             autolayout lr
         }
 

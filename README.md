@@ -103,6 +103,27 @@ O `PaymentEventListener` consome o evento `RideScheduledEvent` da fila `payments
 
 O `NotificationEventListener` consome o evento `PaymentProcessedEvent` da fila `notifications.dispatch` (**AMQP**) e delega ao `NotificationService` a formatação e emissão dos avisos de corrida e pagamento aprovado. Em seguida, o `NotificationRepository` grava o histórico de envios no **PostgreSQL** via **JDBC**.
 
+### 3.4. C4 Nível 4: Fluxos Dinâmicos
+
+#### 1. Autenticação
+![Fluxo Dinâmico - Autenticação](docs/c4/.structurizr/1/svgs/n4/N4-1-Autenticacao.svg)
+
+O Passageiro informa suas credenciais ao Front-end, que chama o Serviço de Usuários. O serviço consulta o PostgreSQL, valida o perfil tarifário e retorna o token JWT ao Passageiro.
+
+#### 2. Agendamento
+![Fluxo Dinâmico - Agendamento](docs/c4/.structurizr/1/svgs/n4/N4-2-Agendamento.svg)
+
+O Passageiro envia uma requisição autenticada ao Serviço de Rotas e Corridas. O serviço valida o JWT, consulta o perfil tarifário e a API de Mapas, verifica os assentos disponíveis, persiste a corrida no PostgreSQL e publica `RideScheduledEvent` no broker.
+
+#### 3. Pagamento e rateio
+![Fluxo Dinâmico - Pagamento e Rateio](docs/c4/.structurizr/1/svgs/n4/N4-3-Pagamento.svg)
+
+O Serviço de Pagamentos recebe `RideScheduledEvent`, consulta os dados necessários no PostgreSQL, calcula o rateio e aplica a tarifa social. Em seguida, solicita a cobrança ao Gateway Externo, salva o resultado no banco e publica `PaymentProcessedEvent` no broker.
+
+#### 4. Notificação
+
+O Serviço de Notificações consome `PaymentProcessedEvent`, formata e registra a confirmação no PostgreSQL e envia o resultado ao Passageiro e ao Motorista. A view dinâmica correspondente está definida em [`docs/c4/workspace.dsl`](docs/c4/workspace.dsl).
+
 ## 4. Guia Passo a Passo de Execução do Projeto
 
 > *Nota: Os comandos abaixo descrevem o procedimento completo de execução da implementação parcial do fluxo principal em Spring Boot.*
@@ -175,7 +196,7 @@ curl -X POST http://localhost:8080/api/rides \
 | **Etapa 1** | 16/11 | **Dupla C:** Cauan Ricardo e João Vitor | Diagramas C4 Níveis 1 e 2 | Configurar Structurizr DSL (`workspace.dsl`) e gerar os diagramas de Contexto e Container alinhados ao `README.md`. |
 | **Etapa 2** | 23/11 | **Dupla A:** Felipe Maia e Clidenor | C4 Nível 3 (Pagamentos e Notificações) | Modelar os componentes internos do **Serviço de Pagamentos** (`PaymentEventListener`, `PaymentService`, `PaymentGatewayClient`, `PaymentRepository`, `PaymentEventPublisher`), filas do RabbitMQ (`payments.process` e `notifications.dispatch`) e **Serviço de Notificações** (`NotificationEventListener`, `NotificationService`, `NotificationRepository`). |
 | **Etapa 2** | 23/11 | **Dupla B:** Pablo e Maria | C4 Nível 3 (Usuários, Rotas e Corridas) | Modelar os componentes internos do **Serviço de Usuários** (`AuthController`, `UserController`, `AuthService`, `UserService`, `UserRepository`) e do **Serviço de Rotas e Corridas** (`RouteController`, `RideController`, `RideService`, `RouteMatchingComponent`, `UserServiceClient`, `MapsClient`, `RideEventPublisher`, `RouteRepository`, `RideRepository`). |
-| **Etapa 2** | 23/11 | **Dupla C:** Cauan Ricardo e João Vitor | C4 Nível 4 (Código) e ADRs | Modelar o diagrama de classes do fluxo principal (autenticação/agendamento/rateio) e redigir as Decisões Arquiteturais (ADRs 01, 02 e 03) em `/docs/adr`. |
+| **Etapa 2** | 23/11 | **Dupla C:** Cauan Ricardo e João Vitor | C4 Nível 4 (Fluxos) e ADRs | Modelar os fluxos dinâmicos de autenticação, agendamento, pagamento/rateio e notificação e redigir as Decisões Arquiteturais (ADRs 01, 02 e 03) em `/docs/adr`. |
 | **Etapa 3** | 01/12 | **Dupla A:** Felipe Maia e Clidenor | Infra Docker e Pagamentos | Subir Docker Compose (RabbitMQ + PostgreSQL), configurar filas AMQP (`RabbitMQConfig`) e implementar o **Serviço de Pagamentos** (`PaymentEventListener`, `PaymentService`, `PaymentGatewayClient`, `PaymentRepository`, `PaymentEventPublisher`). |
 | **Etapa 3** | 01/12 | **Dupla B:** Pablo e Maria | Serviços de Usuários, Rotas e Corridas | Implementar o **Serviço de Usuários** (`/api/users`, `/api/auth` com JWT e perfis tarifários) e o **Serviço de Rotas e Corridas** (`/api/routes`, `POST /api/rides`, validação de JWT, consulta ao Serviço de Usuários, alocação em rota compartilhada e publicação de evento em `payments.process`). |
 | **Etapa 3** | 01/12 | **Dupla C:** Cauan Ricardo e João Vitor | Notificações, Conformidade e Slides | Implementar o **Serviço de Notificações** (`NotificationEventListener`, `NotificationService`, `NotificationRepository`), auditar conformidade código x Structurizr e preparar apresentação. |
