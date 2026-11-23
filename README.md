@@ -76,6 +76,28 @@ O Passageiro e o Motorista acessam o MobiSocial por **HTTPS**. Para processar co
 
 O Front-end se comunica com o Serviço de Usuários e com o Serviço de Rotas e Corridas por **HTTPS/REST** (JSON). O Serviço de Rotas e Corridas consulta o perfil tarifário do passageiro no Serviço de Usuários por **HTTP/REST** e chama a API de Mapas por **HTTPS** para calcular rotas e distâncias. O processamento de pagamento e notificação é assíncrono: o Serviço de Rotas e Corridas publica um evento na fila `payments.process` do RabbitMQ, o Serviço de Pagamentos o consome, faz a cobrança no Gateway Externo por **HTTPS** e publica em `notifications.dispatch`, que o Serviço de Notificações consome. As mensagens entre esses serviços trafegam por **AMQP**, e os serviços gravam seus dados no PostgreSQL via **JDBC**.
 
+#### Fluxos Dinâmicos
+
+##### 1. Autenticação
+![Fluxo Dinâmico - Autenticação](docs/c4/.structurizr/1/svgs/n4/N4-1-Autenticacao-dark.svg)
+
+O Passageiro informa suas credenciais ao Front-end, que chama o Serviço de Usuários. O serviço consulta o PostgreSQL, valida o perfil tarifário e retorna o token JWT ao Passageiro.
+
+##### 2. Agendamento
+![Fluxo Dinâmico - Agendamento](docs/c4/.structurizr/1/svgs/n4/N4-2-Agendamento-dark.svg)
+
+O Passageiro envia uma requisição autenticada ao Serviço de Rotas e Corridas. O serviço valida o JWT, consulta o perfil tarifário e a API de Mapas, verifica os assentos disponíveis, persiste a corrida no PostgreSQL e publica `RideScheduledEvent` no broker.
+
+##### 3. Pagamento e rateio
+![Fluxo Dinâmico - Pagamento e Rateio](docs/c4/.structurizr/1/svgs/n4/N4-3-Pagamento-dark.svg)
+
+O Serviço de Pagamentos recebe `RideScheduledEvent`, consulta os dados necessários no PostgreSQL, calcula o rateio e aplica a tarifa social. Em seguida, solicita a cobrança ao Gateway Externo, salva o resultado no banco e publica `PaymentProcessedEvent` no broker.
+
+##### 4. Notificação
+![Fluxo Dinâmico - Notificação](docs/c4/.structurizr/1/svgs/n4/N4-4-Notificacao-dark.svg)
+
+O Serviço de Notificações consome `PaymentProcessedEvent`, formata e registra a confirmação no PostgreSQL e envia o resultado ao Passageiro e ao Motorista.
+
 ### 3.3. C4 Nível 3: Diagramas de Componentes
 
 #### Serviço de Usuários
@@ -103,26 +125,326 @@ O `PaymentEventListener` consome o evento `RideScheduledEvent` da fila `payments
 
 O `NotificationEventListener` consome o evento `PaymentProcessedEvent` da fila `notifications.dispatch` (**AMQP**) e delega ao `NotificationService` a formatação e emissão dos avisos de corrida e pagamento aprovado. Em seguida, o `NotificationRepository` grava o histórico de envios no **PostgreSQL** via **JDBC**.
 
-### 3.4. C4 Nível 4: Fluxos Dinâmicos
+### 3.4. C4 Nível 4: Diagramas de Classes
 
-#### 1. Autenticação
-![Fluxo Dinâmico - Autenticação](docs/c4/.structurizr/1/svgs/n4/N4-1-Autenticacao.svg)
+#### Serviço de Usuários
 
-O Passageiro informa suas credenciais ao Front-end, que chama o Serviço de Usuários. O serviço consulta o PostgreSQL, valida o perfil tarifário e retorna o token JWT ao Passageiro.
+```mermaid
+classDiagram
+    direction LR
 
-#### 2. Agendamento
-![Fluxo Dinâmico - Agendamento](docs/c4/.structurizr/1/svgs/n4/N4-2-Agendamento.svg)
+    class User {
+        <<abstract entity>>
+        -UUID id
+        -String name
+        -String password
+        -String email
+        -String status
+    }
 
-O Passageiro envia uma requisição autenticada ao Serviço de Rotas e Corridas. O serviço valida o JWT, consulta o perfil tarifário e a API de Mapas, verifica os assentos disponíveis, persiste a corrida no PostgreSQL e publica `RideScheduledEvent` no broker.
+    class Passenger {
+        <<entity>>
+        -TariffProfile tariffProfile
+    }
 
-#### 3. Pagamento e rateio
-![Fluxo Dinâmico - Pagamento e Rateio](docs/c4/.structurizr/1/svgs/n4/N4-3-Pagamento.svg)
+    class Driver {
+        <<entity>>
+    }
 
-O Serviço de Pagamentos recebe `RideScheduledEvent`, consulta os dados necessários no PostgreSQL, calcula o rateio e aplica a tarifa social. Em seguida, solicita a cobrança ao Gateway Externo, salva o resultado no banco e publica `PaymentProcessedEvent` no broker.
+    class Role {
+        <<entity>>
+        -UUID id
+        -String name
+    }
 
-#### 4. Notificação
+    class UserRole {
+        <<entity>>
+        -UUID userId
+        -UUID roleId
+    }
 
-O Serviço de Notificações consome `PaymentProcessedEvent`, formata e registra a confirmação no PostgreSQL e envia o resultado ao Passageiro e ao Motorista. A view dinâmica correspondente está definida em [`docs/c4/workspace.dsl`](docs/c4/workspace.dsl).
+    class TariffProfile {
+        <<enumeration>>
+        COMMON
+        STUDENT
+        SOCIAL
+    }
+
+    class Vehicle {
+        <<entity>>
+        -UUID id
+        -UUID driverId
+        -int seatCapacity
+        -String status
+    }
+
+    class AuthController {
+        +login(credentials) ResponseEntity~String~
+    }
+
+    class UserController {
+        +registerPassenger(request) ResponseEntity~Passenger~
+        +registerDriver(request) ResponseEntity~Driver~
+        +registerVehicle(request) ResponseEntity~Vehicle~
+        +getTariffProfile(userId) TariffProfile
+        +manageVehicleCapacity(vehicleId, seatCapacity) Vehicle
+    }
+
+    class AuthService {
+        +authenticate(email, password) String
+        +generateJwt(user) String
+        +validateJwt(jwt) boolean
+    }
+
+    class UserService {
+        +registerPassenger(request) Passenger
+        +registerDriver(request) Driver
+        +registerVehicle(request) Vehicle
+        +getTariffProfile(userId) TariffProfile
+        +manageVehicleCapacity(vehicleId, seatCapacity) Vehicle
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findByEmail(email) Optional~User~
+        +findById(userId) Optional~User~
+        +save(user) User
+    }
+
+    Passenger --|> User
+    Driver --|> User
+    User "1" --> "*" UserRole : assigned roles
+    UserRole "*" --> "1" Role : references
+    Passenger --> TariffProfile : has
+    Driver "1" --> "*" Vehicle : owns
+    AuthController --> AuthService
+    AuthService --> UserRepository
+    UserController --> UserService
+    UserService --> UserRepository
+    UserRepository ..> User : persists
+```
+
+#### Serviço de Rotas e Corridas
+
+```mermaid
+classDiagram
+    direction LR
+
+    class RouteController {
+        +createRoute(request) ResponseEntity~Route~
+        +getRoute(routeId) ResponseEntity~Route~
+        +listRoutes(origin, destination) List~Route~
+    }
+
+    class RideController {
+        +scheduleRide(request, jwt) ResponseEntity~Ride~
+        +getRideStatus(rideId, jwt) ResponseEntity~Ride~
+    }
+
+    class RideService {
+        +validateJwt(jwt) boolean
+        +scheduleRide(passengerId, routeId, sharedRide, paymentMethod) Ride
+        +getRideStatus(rideId) Ride
+    }
+
+    class RouteMatchingComponent {
+        +findCompatibleRoutes(passengerId, origin, destination) List~Route~
+        +hasAvailableSeats(route) boolean
+        +allocatePassenger(route, passengerId) void
+    }
+
+    class UserServiceClient {
+        +getTariffProfile(passengerId, jwt) TariffProfile
+    }
+
+    class MapsClient {
+        +calculateRouteDistance(origin, destination) BigDecimal
+        +estimateTravelTime(origin, destination) int
+        +calculateRoute(origin, destination, intermediateStops) String
+    }
+
+    class RideEventPublisher {
+        +publishRideScheduled(event) void
+    }
+
+    class RouteRepository {
+        <<interface>>
+        +findById(routeId) Optional~Route~
+        +findAvailableRoutes(origin, destination) List~Route~
+        +save(route) Route
+    }
+
+    class RideRepository {
+        <<interface>>
+        +findById(rideId) Optional~Ride~
+        +findByPassengerId(passengerId) List~Ride~
+        +save(ride) Ride
+    }
+
+    class Route {
+        <<entity>>
+        -UUID id
+        -UUID driverId
+        -UUID vehicleId
+        -String origin
+        -String intermediateStops
+        -String destination
+        -LocalDateTime departureTime
+        -int maxSeats
+        -int occupiedSeats
+    }
+
+    class Ride {
+        <<entity>>
+        -UUID id
+        -UUID passengerId
+        -UUID routeId
+        -boolean sharedRide
+        -String paymentMethod
+        -String status
+    }
+
+    class RideScheduledEvent {
+        +UUID rideId
+        +UUID passengerId
+        +TariffProfile tariffProfile
+        +boolean sharedRide
+        +String paymentMethod
+        +BigDecimal distanceKm
+    }
+
+    RouteController --> RideService
+    RideController --> RideService
+    RideService --> RouteMatchingComponent
+    RideService --> UserServiceClient
+    RideService --> MapsClient
+    RideService --> RouteRepository
+    RideService --> RideRepository
+    RideService --> RideEventPublisher
+    RouteMatchingComponent ..> Route : validates and updates
+    RideRepository ..> Ride : persists
+    RouteRepository ..> Route : persists
+    RideEventPublisher ..> RideScheduledEvent : publishes to payments.process
+    Route "1" --> "*" Ride : accommodates
+```
+
+#### Serviço de Pagamentos
+
+```mermaid
+classDiagram
+    direction LR
+
+    class RideScheduledEvent {
+        +UUID rideId
+        +UUID passengerId
+        +TariffProfile tariffProfile
+        +boolean sharedRide
+        +String paymentMethod
+        +BigDecimal distanceKm
+    }
+
+    class TariffProfile {
+        <<enumeration>>
+        COMMON
+        STUDENT
+        SOCIAL
+    }
+
+    class PaymentEventListener {
+        +onRideScheduled(event) void
+    }
+
+    class PaymentService {
+        +processPayment(event) Payment
+        +calculateFare(tariffProfile, sharedRide, distanceKm, passengerCount) BigDecimal
+    }
+
+    class PaymentGatewayClient {
+        +charge(amount, paymentMethod) boolean
+        +validateSocialVoucher(voucherCode) boolean
+    }
+
+    class PaymentRepository {
+        <<interface>>
+        +findByRideId(rideId) Optional~Payment~
+        +save(payment) Payment
+    }
+
+    class PaymentEventPublisher {
+        +publishPaymentProcessed(event) void
+    }
+
+    class Payment {
+        <<entity>>
+        -UUID id
+        -UUID rideId
+        -UUID passengerId
+        -BigDecimal finalAmount
+        -String paymentMethod
+        -String status
+    }
+
+    class PaymentProcessedEvent {
+        +UUID paymentId
+        +UUID rideId
+        +UUID passengerId
+        +BigDecimal finalAmount
+        +String status
+    }
+
+    RideScheduledEvent --> TariffProfile
+    PaymentEventListener ..> RideScheduledEvent : consumes from payments.process
+    PaymentEventListener --> PaymentService
+    PaymentService --> PaymentGatewayClient
+    PaymentService --> PaymentRepository
+    PaymentService --> PaymentEventPublisher
+    PaymentRepository ..> Payment : persists
+    PaymentEventPublisher ..> PaymentProcessedEvent : publishes to notifications.dispatch
+```
+
+#### Serviço de Notificações
+
+```mermaid
+classDiagram
+    direction LR
+
+    class PaymentProcessedEvent {
+        +UUID paymentId
+        +UUID rideId
+        +UUID passengerId
+        +BigDecimal finalAmount
+        +String status
+    }
+
+    class NotificationEventListener {
+        +onPaymentProcessed(event) void
+    }
+
+    class NotificationService {
+        +sendConfirmation(event) Notification
+        +notifyPassenger(passengerId, rideId, message) Notification
+        +notifyDriver(driverId, rideId, message) Notification
+    }
+
+    class NotificationRepository {
+        <<interface>>
+        +save(notification) Notification
+    }
+
+    class Notification {
+        <<entity>>
+        -UUID id
+        -UUID passengerId
+        -UUID rideId
+        -String message
+        -LocalDateTime sentAt
+    }
+
+    NotificationEventListener ..> PaymentProcessedEvent : consumes from notifications.dispatch
+    NotificationEventListener --> NotificationService
+    NotificationService --> NotificationRepository
+    NotificationRepository ..> Notification : persists
+```
 
 ## 4. Guia Passo a Passo de Execução do Projeto
 
