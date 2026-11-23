@@ -10,11 +10,13 @@ Este documento define o fluxo de trabalho da equipe no repositório do **MobiSoc
 | develop | Integração de docs e código | Recebe PRs de trabalho |
 | docs/nome-da-tarefa | Modelagem C4, README e ADRs | Criada a partir de develop |
 | feat/nome-da-tarefa | Serviços SOA, Eventos e Infra | Criada a partir de develop |
+| chore/nome-da-tarefa | Setup Docker, Maven e dependências | Criada a partir de develop |
 
-Como o projeto possui frentes de documentação arquitetural (Structurizr DSL e ADRs) e frentes de implementação parcial em Spring Boot (Infra Docker, Serviço de Rotas/Corridas, Serviço de Pagamentos e Serviço de Notificações), utilize prefixos claros ao nomear sua branch:
+Como o projeto possui frentes de documentação arquitetural (Structurizr DSL e ADRs) e frentes de implementação parcial em Spring Boot (Infra Docker, Serviço de Usuários, Serviço de Rotas/Corridas, Serviço de Pagamentos e Serviço de Notificações), utilize prefixos claros ao nomear sua branch:
 
 - **Documentação e C4:** `docs/c4-contexto-container`, `docs/c4-componentes-servicos`, `docs/adr-escolhas-arquiteturais`
 - **Infraestrutura e Mensageria:** `feat/infra-docker-rabbitmq`, `feat/config-filas-amqp`
+- **Serviço de Usuários (SOA):** `feat/users-auth-jwt`, `feat/users-perfis-tarifarios`
 - **Serviço de Rotas e Corridas (SOA):** `feat/rides-endpoint-agendamento`, `feat/rides-pareamento-rota`
 - **Serviços de Pagamentos e Notificações (Event-Driven):** `feat/payments-calculo-rateio`, `feat/notifications-listener`
 
@@ -52,10 +54,11 @@ docs: documenta ADR 01 sobre adocao de SOA e Event-Driven com RabbitMQ
 docs: detalha requisitos RF01 a RF05 e escopo de mobilidade urbana
 chore: importa dependencias do Spring Boot para RabbitMQ e PostgreSQL
 chore: configura containers do RabbitMQ e PostgreSQL no Docker Compose
+feat: implementa AuthController e UserService com emissao de JWT (RF01)
 feat: implementa RideController e RideService para agendamento compartilhado (RF03)
 feat: implementa PaymentEventListener e calculo de rateio tarifario (RF04)
 feat: publica eventos nas filas payments.process e notifications.dispatch (RF05)
-refactor: organiza pacotes dos servicos de corridas, pagamentos e notificacoes
+refactor: organiza pacotes dos servicos de usuarios, corridas, pagamentos e notificacoes
 ```
 
 ### Boas práticas
@@ -84,5 +87,11 @@ git commit -m "docs: atualiza documentacao do projeto para o Tema 13 (MobiSocial
 
 - O título do Pull Request deve seguir o padrão do Conventional Commits (ex.: `feat: implementa agendamento de corrida compartilhada (RF03)`).
 - Descreva de forma objetiva o que foi modelado ou codificado e como testar (ex.: comando para subir o Structurizr ou requisição `POST /api/rides` para testar a fila `payments.process`).
-- **Regra de Conformidade C4 (Obrigatória):** Na Etapa 3, qualquer classe, pacote ou componente criado no código Spring Boot (`RideController`, `RideService`, `RouteMatchingComponent`, `RideRepository`, `PaymentEventListener`, `PaymentService`, `NotificationEventListener`) deve possuir exatamente a mesma nomenclatura definida nos diagramas de Nível 3 e Nível 4. Se a dupla alterar o nome de uma classe ou fila no código, deve atualizar a DSL do Structurizr no mesmo Pull Request.
+- **Regra de Conformidade C4 (Obrigatória):** Na Etapa 3, qualquer classe, pacote ou componente criado no código Spring Boot deve possuir exatamente a mesma nomenclatura definida nos diagramas de Nível 3 e Nível 4, seguindo a lista canônica do projeto:
+  - **Configuração (`config`):** `RabbitMQConfig`, `SecurityConfig`
+  - **Serviço de Usuários (`user`):** `AuthController`, `UserController`, `AuthService`, `UserService`, `UserRepository`
+  - **Serviço de Rotas e Corridas (`ride`):** `RouteController`, `RideController`, `RideService`, `RouteMatchingComponent`, `UserServiceClient`, `MapsClient`, `RideEventPublisher`, `RouteRepository`, `RideRepository`
+  - **Serviço de Pagamentos (`payment`):** `PaymentEventListener`, `PaymentService`, `PaymentGatewayClient`, `PaymentRepository`, `PaymentEventPublisher`
+  - **Serviço de Notificações (`notification`):** `NotificationEventListener`, `NotificationService`, `NotificationRepository`
+  Se a dupla alterar o nome de uma classe ou fila no código, deve atualizar a DSL do Structurizr no mesmo Pull Request.
 - Se a alteração mudar o formato do contrato JSON dos eventos trafegados no RabbitMQ, destaque a mudança na descrição do PR.
