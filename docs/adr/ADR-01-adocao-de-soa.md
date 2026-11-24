@@ -76,7 +76,7 @@ Cada serviço como aplicação independente, com deploy, banco e pipeline própr
 
 ## Referências
 
-- [`README.md`](../../README.md), seção 2.1 (Arquitetura Orientada a Serviços)
+- [`docs/arquitetura.md`](../arquitetura.md), seção 1 (Arquitetura Orientada a Serviços) e [`docs/produto.md`](../produto.md)
 - [`docs/c4/workspace.dsl`](../c4/workspace.dsl), views `N2-Containers` e `N3-*`
 - [ADR 02: Event-Driven com RabbitMQ](./ADR-02-event-driven-com-rabbitmq.md)
 - [ADR 03: Persistência relacional com PostgreSQL e JPA](./ADR-03-persistencia-postgresql-jpa.md)

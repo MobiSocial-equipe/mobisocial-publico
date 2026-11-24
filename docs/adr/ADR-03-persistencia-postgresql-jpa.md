@@ -52,7 +52,9 @@ Todo acesso ao banco passa pelos componentes `*Repository` (interfaces do Spring
 
 ### 4. Evolução do esquema
 
-Na implementação parcial, o esquema é gerado pelo Hibernate (`spring.jpa.hibernate.ddl-auto=update`). Para ambientes estáveis, a recomendação é migrar para versionamento de esquema com Flyway.
+O versionamento de esquema SQL é gerenciado pelo **Flyway** (`spring-boot-starter-flyway` e `flyway-database-postgresql`), com varredura recursiva em `classpath:db/migration`. As migrations usam prefixo de timestamp `yyyyMMddHHmmss` (`VyyyyMMddHHmmss__descricao.sql`), são organizadas por módulo (`users/`, `rides/`, `payments/`, `notifications/`) e criadas com o utilitário [`scripts/create-migration.sh`](../../scripts/create-migration.sh) (instruções em [`src/main/resources/db/migration/README.md`](../../src/main/resources/db/migration/README.md)).
+
+Durante o desenvolvimento incremental das entidades na Etapa 3, `spring.jpa.hibernate.ddl-auto=update` permanece ativo de forma transitória, devendo ser alterado para `validate` assim que as tabelas iniciais dos quatro serviços estiverem versionadas em migrations SQL.
 
 ## Alternativas consideradas
 
@@ -85,18 +87,20 @@ Na implementação parcial, o esquema é gerado pelo Hibernate (`spring.jpa.hibe
 - **Posse clara dos dados:** cada serviço é dono do próprio schema, o que reforça as fronteiras do ADR 01.
 - **Infraestrutura simples:** um único container PostgreSQL no Docker Compose atende os quatro serviços.
 - **Ferramentas maduras:** o PostgreSQL é gratuito e bem documentado, com bom suporte a consultas e, se necessário, extensões geográficas (PostGIS) para o pareamento de rotas.
+- **Evolução controlada com Flyway:** alterações estruturais do banco ficam rastreadas e reproduzíveis em migrations SQL versionadas por módulo em `src/main/resources/db/migration/`.
 
 ### Negativas e riscos
 
 - **Ponto único de falha:** uma única instância do PostgreSQL atende todos os serviços. Se ela cair, o sistema inteiro para. Isso é aceitável no contexto acadêmico, e a divisão em schemas facilita separar os bancos depois.
 - **Sem _joins_ entre serviços:** relatórios que cruzam dados de vários serviços (por exemplo, "corridas com tarifa social pagas no mês") precisam combinar dados via API ou eventos, em vez de uma consulta SQL única.
 - **Armadilhas do JPA:** carregamento preguiçoso (_lazy loading_) e o problema de consultas N+1 podem prejudicar o desempenho se o mapeamento não for bem cuidado.
-- **`ddl-auto=update` não é seguro para produção:** pode gerar alterações inesperadas no esquema. Deve ser trocado por Flyway antes de um ambiente real.
+- **Disciplina de migrations e transição do `ddl-auto`:** embora o Flyway já esteja ativo, `spring.jpa.hibernate.ddl-auto=update` permanece temporariamente durante o desenvolvimento da Etapa 3; a equipe não deve editar migrations já aplicadas e deve migrar para `validate` antes de ambientes estáveis.
 
 ## Referências
 
-- [`README.md`](../../README.md), seção 3.2 (C4 Nível 2) e seção 4.1 (Infraestrutura com Docker Compose)
+- [`docs/c4/README.md`](../c4/README.md) (C4 Nível 2) e [`docs/execucao.md`](../execucao.md) (Infraestrutura com Docker Compose e Flyway)
 - [`docs/c4/workspace.dsl`](../c4/workspace.dsl), container `db` e componentes `*Repository`
 - [`src/main/resources/application.properties`](../../src/main/resources/application.properties)
+- [`src/main/resources/db/migration/README.md`](../../src/main/resources/db/migration/README.md) e [`scripts/create-migration.sh`](../../scripts/create-migration.sh)
 - [ADR 01: Adoção de SOA](./ADR-01-adocao-de-soa.md)
 - [ADR 02: Event-Driven com RabbitMQ](./ADR-02-event-driven-com-rabbitmq.md)
