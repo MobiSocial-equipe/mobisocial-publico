@@ -125,9 +125,23 @@ O `PaymentEventListener` consome o evento `RideScheduledEvent` da fila `payments
 
 O `NotificationEventListener` consome o evento `PaymentProcessedEvent` da fila `notifications.dispatch` (**AMQP**) e delega ao `NotificationService` a formatação e emissão dos avisos de corrida e pagamento aprovado. Em seguida, o `NotificationRepository` grava o histórico de envios no **PostgreSQL** via **JDBC**.
 
-### 3.4. C4 Nível 4: Diagramas de Classes
+### 3.4. C4 Nível 4: Diagramas de Código e Classes
 
-#### Serviço de Usuários
+#### Diagramas de Código no Structurizr (`workspace.dsl`)
+
+##### Serviço de Rotas e Corridas (Classes, Interfaces JPA, Entidades e Eventos)
+![Diagrama de Código - Serviço de Rotas e Corridas](docs/c4/.structurizr/1/svgs/n4/N4-Codigo-Corridas-dark.svg)
+
+Modela diretamente no Structurizr as classes (`RouteController`, `RideController`, `RideService`, `RouteMatchingComponent`, `UserServiceClient`, `MapsClient`, `RideEventPublisher`), interfaces JPA (`RouteRepository`, `RideRepository`), entidades (`Route` e `Ride`, no schema `rides`) e contratos de evento (`RideScheduledEvent` e `TariffProfile`) do pacote `br.ufc.quixada.arquitetura.mobisocial.ride`.
+
+##### Serviço de Pagamentos (Classes, Interface JPA, Entidade e Eventos)
+![Diagrama de Código - Serviço de Pagamentos](docs/c4/.structurizr/1/svgs/n4/N4-Codigo-Pagamentos-dark.svg)
+
+Modela diretamente no Structurizr o consumidor AMQP (`PaymentEventListener`), o serviço de cálculo de rateio e tarifa social (`PaymentService`), o cliente HTTPS do gateway (`PaymentGatewayClient`), a interface JPA (`PaymentRepository`), a entidade `Payment` (no schema `payments`), o publicador (`PaymentEventPublisher`) e os eventos `RideScheduledEvent` e `PaymentProcessedEvent`.
+
+#### Diagramas de Classes (Mermaid — Detalhamento por Serviço)
+
+##### Serviço de Usuários
 
 ```mermaid
 classDiagram
@@ -224,7 +238,7 @@ classDiagram
     UserRepository ..> User : persists
 ```
 
-#### Serviço de Rotas e Corridas
+##### Serviço de Rotas e Corridas
 
 ```mermaid
 classDiagram
@@ -328,7 +342,7 @@ classDiagram
     Route "1" --> "*" Ride : accommodates
 ```
 
-#### Serviço de Pagamentos
+##### Serviço de Pagamentos
 
 ```mermaid
 classDiagram
@@ -402,7 +416,7 @@ classDiagram
     PaymentEventPublisher ..> PaymentProcessedEvent : publishes to notifications.dispatch
 ```
 
-#### Serviço de Notificações
+##### Serviço de Notificações
 
 ```mermaid
 classDiagram
