@@ -22,7 +22,9 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
             rideService = container "Serviço de Rotas e Corridas" "Cria rotas, agenda corridas, pareia passageiros e publica eventos. Valida o JWT recebido." "Spring Boot (REST)" "Servico" {
                 routeController = component "RouteController" "Expõe endpoints REST (/api/routes) para criação, consulta e gerenciamento de rotas oferecidas por motoristas." "Spring Web (@RestController)" "Componente"
                 rideController = component "RideController" "Expõe endpoints REST (/api/rides) para solicitação, agendamento e acompanhamento de corridas por passageiros." "Spring Web (@RestController)" "Componente"
-                rideServiceComp = component "RideService" "Orquestra as regras de negócio de rotas e corridas, coordena o pareamento e aciona persistência e publicação de eventos." "Spring Bean (@Service)" "Componente"
+                rideServiceComp = component "RideService" "Orquestra as regras de negócio de rotas e corridas, coordena o pareamento e aciona persistência e publicação de eventos." "Spring Bean (@Service)" "Componente" {
+                    url "{workspace}/diagrams#N4-Codigo-Corridas"
+                }
                 routeMatchingComponent = component "RouteMatchingComponent" "Executa a lógica de compatibilidade geográfica e de horários para parear passageiros e rotas disponíveis." "Spring Bean (@Component)" "Componente"
                 userServiceClient = component "UserServiceClient" "Consulta o Serviço de Usuários via HTTP/REST para validar perfis tarifários (comum, estudante, social) e cadastros." "Spring HTTP Client (@Component)" "Componente"
                 mapsClient = component "MapsClient" "Integra-se via HTTPS com a API de Mapas / Geolocalização para obter distância, tempo estimado e traçado de rotas." "Spring HTTP Client (@Component)" "Componente"
@@ -38,7 +40,9 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
 
             paymentService = container "Serviço de Pagamentos" "Consome corridas agendadas, calcula rateio/tarifa social e processa a cobrança." "Spring Boot (Worker)" "Servico" {
                 paymentEventListener = component "PaymentEventListener" "Consome eventos RideScheduledEvent da fila payments.process e aciona o processamento financeiro." "Spring AMQP (@RabbitListener)" "Componente"
-                paymentServiceComp = component "PaymentService" "Calcula o rateio (carpooling), aplica descontos de tarifa social (estudante/UBS) e coordena cobrança, persistência e publicação de evento." "Spring Bean (@Service)" "Componente"
+                paymentServiceComp = component "PaymentService" "Calcula o rateio (carpooling), aplica descontos de tarifa social (estudante/UBS) e coordena cobrança, persistência e publicação de evento." "Spring Bean (@Service)" "Componente" {
+                    url "{workspace}/diagrams#N4-Codigo-Pagamentos"
+                }
                 paymentGatewayClient = component "PaymentGatewayClient" "Integra-se via HTTPS com o Gateway Externo de Pagamentos para processar PIX, cartão ou voucher social." "Spring HTTP Client (@Component)" "Componente"
                 paymentRepository = component "PaymentRepository" "Persiste e consulta transações financeiras, rateios e subsídios no PostgreSQL." "Spring Data JPA (@Repository)" "Componente"
                 paymentEventPublisher = component "PaymentEventPublisher" "Publica o evento PaymentProcessedEvent na fila notifications.dispatch após aprovação da cobrança." "Spring AMQP (RabbitTemplate)" "Componente"
@@ -137,9 +141,70 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
         notificationEventListener -> notificationServiceComp "Delega emissão do aviso de corrida e pagamento"
         notificationServiceComp -> notificationRepository "Salva registro do envio"
         notificationRepository -> db "Registra envios de notificações" "JDBC"
+
+        # --- Nível 4 (Código): Pacotes, Classes, Interfaces JPA, Entidades e Eventos
+        group "br.ufc.quixada.arquitetura.mobisocial.user.model" {
+            clsTariffProfile = element "TariffProfile" "<<enumeration>>" "COMMON | STUDENT | SOCIAL" "CodigoEnum"
+        }
+
+        group "br.ufc.quixada.arquitetura.mobisocial.event" {
+            clsRideScheduledEvent = element "RideScheduledEvent" "<<record / event>>" "+rideId: UUID | +passengerId: UUID | +tariffProfile: TariffProfile | +sharedRide: boolean | +paymentMethod: String | +distanceKm: BigDecimal" "CodigoEvento"
+            clsPaymentProcessedEvent = element "PaymentProcessedEvent" "<<record / event>>" "+paymentId: UUID | +rideId: UUID | +passengerId: UUID | +finalAmount: BigDecimal | +status: String" "CodigoEvento"
+        }
+
+        group "br.ufc.quixada.arquitetura.mobisocial.ride" {
+            clsRouteController = element "RouteController" "<<@RestController>>" "+createRoute(request): ResponseEntity<Route> | +getRoute(routeId): ResponseEntity<Route> | +listRoutes(origin, destination): List<Route>" "CodigoClasse"
+            clsRideController = element "RideController" "<<@RestController>>" "+scheduleRide(request, jwt): ResponseEntity<Ride> | +getRideStatus(rideId, jwt): ResponseEntity<Ride>" "CodigoClasse"
+            clsRideService = element "RideService" "<<@Service>>" "+validateJwt(jwt): boolean | +scheduleRide(passengerId, routeId, sharedRide, paymentMethod): Ride | +getRideStatus(rideId): Ride" "CodigoClasse"
+            clsRouteMatchingComponent = element "RouteMatchingComponent" "<<@Component>>" "+findCompatibleRoutes(passengerId, origin, destination): List<Route> | +hasAvailableSeats(route): boolean | +allocatePassenger(route, passengerId): void" "CodigoClasse"
+            clsUserServiceClient = element "UserServiceClient" "<<@Component>>" "+getTariffProfile(passengerId, jwt): TariffProfile" "CodigoClasse"
+            clsMapsClient = element "MapsClient" "<<@Component>>" "+calculateRouteDistance(origin, destination): BigDecimal | +estimateTravelTime(origin, destination): int | +calculateRoute(origin, destination, stops): String" "CodigoClasse"
+            clsRideEventPublisher = element "RideEventPublisher" "<<@Component>>" "+publishRideScheduled(event): void" "CodigoClasse"
+            clsRouteRepository = element "RouteRepository" "<<interface>> JpaRepository" "+findById(routeId): Optional<Route> | +findAvailableRoutes(origin, destination): List<Route> | +save(route): Route" "CodigoInterface"
+            clsRideRepository = element "RideRepository" "<<interface>> JpaRepository" "+findById(rideId): Optional<Ride> | +findByPassengerId(passengerId): List<Ride> | +save(ride): Ride" "CodigoInterface"
+            clsRoute = element "Route" "<<@Entity>> schema=rides" "-id: UUID | -driverId: UUID | -vehicleId: UUID | -origin: String | -intermediateStops: String | -destination: String | -departureTime: LocalDateTime | -maxSeats: int | -occupiedSeats: int" "CodigoEntidade"
+            clsRide = element "Ride" "<<@Entity>> schema=rides" "-id: UUID | -passengerId: UUID | -routeId: UUID | -sharedRide: boolean | -paymentMethod: String | -status: String" "CodigoEntidade"
+        }
+
+        group "br.ufc.quixada.arquitetura.mobisocial.payment" {
+            clsPaymentEventListener = element "PaymentEventListener" "<<@RabbitListener>>" "+onRideScheduled(event): void" "CodigoClasse"
+            clsPaymentService = element "PaymentService" "<<@Service>>" "+processPayment(event): Payment | +calculateFare(tariffProfile, sharedRide, distanceKm, passengerCount): BigDecimal" "CodigoClasse"
+            clsPaymentGatewayClient = element "PaymentGatewayClient" "<<@Component>>" "+charge(amount, paymentMethod): boolean | +validateSocialVoucher(voucherCode): boolean" "CodigoClasse"
+            clsPaymentRepository = element "PaymentRepository" "<<interface>> JpaRepository" "+findByRideId(rideId): Optional<Payment> | +save(payment): Payment" "CodigoInterface"
+            clsPaymentEventPublisher = element "PaymentEventPublisher" "<<@Component>>" "+publishPaymentProcessed(event): void" "CodigoClasse"
+            clsPayment = element "Payment" "<<@Entity>> schema=payments" "-id: UUID | -rideId: UUID | -passengerId: UUID | -finalAmount: BigDecimal | -paymentMethod: String | -status: String" "CodigoEntidade"
+        }
+
+        clsRouteController -> clsRideService "invoca"
+        clsRideController -> clsRideService "invoca"
+        clsRideService -> clsRouteMatchingComponent "valida rota e aloca assento"
+        clsRideService -> clsUserServiceClient "consulta perfil tarifário"
+        clsRideService -> clsMapsClient "calcula distância e tempo"
+        clsRideService -> clsRouteRepository "consulta e salva rotas"
+        clsRideService -> clsRideRepository "consulta e salva corridas"
+        clsRideService -> clsRideEventPublisher "publica após commit"
+        clsUserServiceClient -> clsTariffProfile "retorna"
+        clsRouteMatchingComponent -> clsRoute "valida e atualiza assentos"
+        clsRouteRepository -> clsRoute "persiste (@Entity)"
+        clsRideRepository -> clsRide "persiste (@Entity)"
+        clsRoute -> clsRide "1..* acomoda"
+        clsRideEventPublisher -> clsRideScheduledEvent "instancia e publica (payments.process)"
+        clsRideScheduledEvent -> clsTariffProfile "contém"
+
+        clsPaymentEventListener -> clsRideScheduledEvent "consome (payments.process)"
+        clsPaymentEventListener -> clsPaymentService "delega processamento"
+        clsPaymentService -> clsPaymentGatewayClient "cobra ou valida voucher"
+        clsPaymentService -> clsPaymentRepository "verifica idempotência e salva"
+        clsPaymentService -> clsPaymentEventPublisher "aciona publicação"
+        clsPaymentRepository -> clsPayment "persiste (@Entity)"
+        clsPaymentEventPublisher -> clsPaymentProcessedEvent "instancia e publica (notifications.dispatch)"
     }
 
     views {
+        properties {
+            "structurizr.sort" "created"
+        }
+
         systemContext mobisocial "N1-Contexto" "C4 Nível 1 - Diagrama de Contexto" {
             include *
             autolayout lr
@@ -221,6 +286,16 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
             autolayout lr
         }
 
+        custom "N4-Codigo-Corridas" "C4 Nível 4 (Código) - Classes de Rotas e Corridas" "Diagrama de classes, interfaces JPA, entidades e eventos gerado pelo Structurizr para o Serviço de Rotas e Corridas" {
+            include clsRouteController clsRideController clsRideService clsRouteMatchingComponent clsUserServiceClient clsMapsClient clsRideEventPublisher clsRouteRepository clsRideRepository clsRoute clsRide clsRideScheduledEvent clsTariffProfile
+            autolayout lr
+        }
+
+        custom "N4-Codigo-Pagamentos" "C4 Nível 4 (Código) - Classes de Pagamentos" "Diagrama de classes, interface JPA, entidade e eventos gerado pelo Structurizr para o Serviço de Pagamentos" {
+            include clsRideScheduledEvent clsTariffProfile clsPaymentEventListener clsPaymentService clsPaymentGatewayClient clsPaymentRepository clsPaymentEventPublisher clsPayment clsPaymentProcessedEvent
+            autolayout lr
+        }
+
         styles {
             element "Pessoa" {
                 shape Person
@@ -262,6 +337,50 @@ workspace "MobiSocial" "Mobilidade urbana inclusiva - SOA + Event-Driven (Spring
                 shape Cylinder
                 background #5e35b1
                 color #ffffff
+            }
+            element "Group" {
+                color #94a3b8
+                border dashed
+            }
+            element "CodigoClasse" {
+                shape RoundedBox
+                background #1e293b
+                color #f8fafc
+                border solid
+                stroke #94a3b8
+                strokeWidth 2
+            }
+            element "CodigoInterface" {
+                shape RoundedBox
+                background #1e293b
+                color #f8fafc
+                border dashed
+                stroke #cbd5e1
+                strokeWidth 3
+            }
+            element "CodigoEntidade" {
+                shape RoundedBox
+                background #27223d
+                color #f8fafc
+                border solid
+                stroke #a78bfa
+                strokeWidth 2
+            }
+            element "CodigoEvento" {
+                shape RoundedBox
+                background #2d2118
+                color #f8fafc
+                border solid
+                stroke #fbbf24
+                strokeWidth 2
+            }
+            element "CodigoEnum" {
+                shape RoundedBox
+                background #27272a
+                color #e4e4e7
+                border dotted
+                stroke #a1a1aa
+                strokeWidth 2
             }
             relationship "Relationship" {
                 routing Orthogonal
