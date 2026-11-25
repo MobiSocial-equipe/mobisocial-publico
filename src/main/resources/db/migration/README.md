@@ -10,7 +10,7 @@ As migrations podem ser agrupadas por módulo (um subdiretório por serviço SOA
 
 ```text
 db/migration/
-├── V20261124000000__init_schemas.sql
+├── V20261125134217__init_schemas.sql
 ├── users/
 ├── rides/
 ├── payments/
