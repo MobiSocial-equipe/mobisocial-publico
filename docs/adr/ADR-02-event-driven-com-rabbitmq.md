@@ -83,7 +83,7 @@ O Serviço de Rotas e Corridas chamaria o Serviço de Pagamentos por HTTP, que p
 
 ## Referências
 
-- [`README.md`](../../README.md), seção 2.2 (Arquitetura Baseada em Eventos) e seção 1.4 (Fluxo Principal)
+- [`docs/arquitetura.md`](../arquitetura.md), seção 2 (Arquitetura Baseada em Eventos) e [`docs/produto.md`](../produto.md) (Fluxo Principal)
 - [`docs/c4/workspace.dsl`](../c4/workspace.dsl), views `N3-Broker`, `N3-Pagamentos`, `N3-Notificacoes` e `N4-*`
 - [ADR 01: Adoção de SOA](./ADR-01-adocao-de-soa.md)
 - [ADR 03: Persistência relacional com PostgreSQL e JPA](./ADR-03-persistencia-postgresql-jpa.md)

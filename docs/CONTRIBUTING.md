@@ -54,6 +54,7 @@ docs: documenta ADR 01 sobre adocao de SOA e Event-Driven com RabbitMQ
 docs: detalha requisitos RF01 a RF05 e escopo de mobilidade urbana
 chore: importa dependencias do Spring Boot para RabbitMQ e PostgreSQL
 chore: configura containers do RabbitMQ e PostgreSQL no Docker Compose
+chore: adiciona migration de criacao da tabela payments no schema payments (RF04, ADR 03)
 feat: implementa AuthController e UserService com emissao de JWT (RF01)
 feat: implementa RideController e RideService para agendamento compartilhado (RF03)
 feat: implementa PaymentEventListener e calculo de rateio tarifario (RF04)
@@ -89,9 +90,16 @@ git commit -m "docs: atualiza documentacao do projeto para o Tema 13 (MobiSocial
 - Descreva de forma objetiva o que foi modelado ou codificado e como testar (ex.: comando para subir o Structurizr ou requisição `POST /api/rides` para testar a fila `payments.process`).
 - **Regra de Conformidade C4 (Obrigatória):** Na Etapa 3, qualquer classe, pacote ou componente criado no código Spring Boot deve possuir exatamente a mesma nomenclatura definida nos diagramas de Nível 3 e Nível 4, seguindo a lista canônica do projeto:
   - **Configuração (`config`):** `RabbitMQConfig`, `SecurityConfig`
+  - **Contratos de Evento (`event`):** `RideScheduledEvent`, `PaymentProcessedEvent`
   - **Serviço de Usuários (`user`):** `AuthController`, `UserController`, `AuthService`, `UserService`, `UserRepository`
   - **Serviço de Rotas e Corridas (`ride`):** `RouteController`, `RideController`, `RideService`, `RouteMatchingComponent`, `UserServiceClient`, `MapsClient`, `RideEventPublisher`, `RouteRepository`, `RideRepository`
   - **Serviço de Pagamentos (`payment`):** `PaymentEventListener`, `PaymentService`, `PaymentGatewayClient`, `PaymentRepository`, `PaymentEventPublisher`
   - **Serviço de Notificações (`notification`):** `NotificationEventListener`, `NotificationService`, `NotificationRepository`
   Se a dupla alterar o nome de uma classe ou fila no código, deve atualizar a DSL do Structurizr no mesmo Pull Request.
 - Se a alteração mudar o formato do contrato JSON dos eventos trafegados no RabbitMQ, destaque a mudança na descrição do PR.
+
+### Migrations SQL (Flyway), Variáveis de Ambiente e Documentação
+
+- **Migrations Flyway ([ADR 03](./adr/ADR-03-persistencia-postgresql-jpa.md)):** Toda alteração de tabela ou estrutura no PostgreSQL deve ser versionada como migration SQL via `./scripts/create-migration.sh <modulo> <descricao>` em `src/main/resources/db/migration/<modulo>/` (`VyyyyMMddHHmmss__descricao.sql`) — consulte [`src/main/resources/db/migration/README.md`](../src/main/resources/db/migration/README.md). Qualifique sempre o schema dono da tabela (`users`, `rides`, `payments`, `notifications`), **nunca** crie chaves estrangeiras entre schemas de serviços diferentes e **nunca** edite uma migration já aplicada/mergeada (crie uma nova migration corretiva).
+- **Variáveis de ambiente:** Nunca versione o arquivo `.env` (listado no `.gitignore`) nem insira credenciais reais no [`.env.example`](../.env.example). Ao adicionar novas variáveis em `application.properties` ou `docker-compose.yml`, documente-as no `.env.example` apenas com *placeholders*.
+- **Documentação modular:** Ao alterar fluxos, execução, arquitetura ou diagramas, atualize o documento correspondente ([`docs/produto.md`](./produto.md), [`docs/arquitetura.md`](./arquitetura.md), [`docs/c4/README.md`](./c4/README.md), [`docs/execucao.md`](./execucao.md)).
